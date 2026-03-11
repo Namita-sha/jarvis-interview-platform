@@ -1,61 +1,73 @@
-// src/App.jsx — FIXED for redirect auth
+// src/App.jsx
+import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import Landing from "./pages/Landing";
-import Dashboard from "./pages/Dashboard";
-import Setup from "./pages/Setup";
-import Interview from "./pages/Interview";
-import Feedback from "./pages/Feedback";
-import Navbar from "./components/Navbar";
+import Landing     from "./pages/Landing";
+import Dashboard   from "./pages/Dashboard";
+import Setup       from "./pages/Setup";
+import Interview   from "./pages/Interview";
+import Feedback    from "./pages/Feedback";
+import Navbar      from "./components/Navbar";
+import JarvisIntro from "./components/JarvisIntro";
+import ArcReactor  from "./components/ArcReactor";
+
+function Spinner() {
+  return (
+    <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#06090F",gap:20 }}>
+      <ArcReactor size="lg" />
+      <p style={{ fontFamily:"JetBrains Mono,monospace",fontSize:10,letterSpacing:4,color:"rgba(0,200,255,0.4)" }}>
+        INITIALIZING...
+      </p>
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-jarvis-bg">
-        <div className="w-10 h-10 border-2 border-jarvis-border border-t-jarvis-cyan rounded-full animate-spin" />
-      </div>
-    );
-  }
-  if (!user) return <Navigate to="/" replace />;
+  if (loading) return <Spinner />;
+  if (!user)   return <Navigate to="/" replace />;
   return children;
 }
 
-function AppContent() {
+function AppRoutes() {
   const { user, loading } = useAuth();
+  const [introShown, setIntroShown] = useState(() =>
+    sessionStorage.getItem("jarvis_intro_shown") === "true"
+  );
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-jarvis-bg">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-2 border-jarvis-border border-t-jarvis-cyan rounded-full animate-spin" />
-          <p className="text-jarvis-muted text-xs font-mono">Loading JARVIS...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleIntroComplete = () => {
+    sessionStorage.setItem("jarvis_intro_shown", "true");
+    setIntroShown(true);
+  };
+
+  if (loading) return <Spinner />;
 
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-jarvis-bg grid-bg">
+    <>
+      {!introShown && !user && (
+        <JarvisIntro onComplete={handleIntroComplete} />
+      )}
+      <div style={{ minHeight:"100vh",background:"#06090F",display:"flex",flexDirection:"column" }}>
         <Navbar />
         <Routes>
-          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/setup"     element={<ProtectedRoute><Setup /></ProtectedRoute>} />
+          <Route path="/"              element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
+          <Route path="/dashboard"     element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/setup"         element={<ProtectedRoute><Setup /></ProtectedRoute>} />
           <Route path="/interview/:id" element={<ProtectedRoute><Interview /></ProtectedRoute>} />
           <Route path="/feedback/:id"  element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*"             element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-    </BrowserRouter>
+    </>
   );
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
     </AuthProvider>
   );
 }

@@ -1,213 +1,187 @@
 // src/pages/Feedback.jsx
-// Displays AI evaluation results with detailed scores
-
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import ProgressRing from "../components/ProgressRing";
+import ArcReactor from "../components/ArcReactor";
 
-const CATEGORY_ICONS = {
-  "Communication Skills": "💬",
-  "Technical Knowledge": "🧠",
-  "Problem Solving": "🔧",
-  "Cultural & Role Fit": "🤝",
-  "Confidence & Clarity": "⚡",
+const fmtDate = (ts) => {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString("en-US", { month:"long",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit" });
 };
 
-const getScoreLabel = (score) => {
-  if (score >= 85) return { label: "Excellent", color: "text-green-400", bg: "bg-green-400/10 border-green-400/30" };
-  if (score >= 70) return { label: "Good", color: "text-jarvis-cyan", bg: "bg-jarvis-cyan/10 border-jarvis-cyan/30" };
-  if (score >= 55) return { label: "Average", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30" };
-  return { label: "Needs Work", color: "text-red-400", bg: "bg-red-400/10 border-red-400/30" };
+const scoreLabel = (s) => s>=85?"OPTIMAL":s>=70?"PROFICIENT":s>=55?"ADEQUATE":"BELOW THRESHOLD";
+
+const CATS = {
+  "Communication Skills": "01",
+  "Technical Knowledge":  "02",
+  "Problem Solving":      "03",
+  "Cultural & Role Fit":  "04",
+  "Confidence & Clarity": "05",
 };
 
-const formatDate = (timestamp) => {
-  if (!timestamp) return "Unknown";
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
-};
+function ScoreRing({ score, size=150 }) {
+  const r    = (size-14)/2;
+  const circ = r*2*Math.PI;
+  const off  = circ - (score/100)*circ;
+  return (
+    <div style={{ position:"relative",width:size,height:size,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+      {/* Glow */}
+      <div style={{ position:"absolute",inset:-10,borderRadius:"50%",background:"radial-gradient(circle,rgba(0,200,255,0.08) 0%,transparent 70%)",animation:"arcPulse 3s infinite" }} />
+      <svg width={size} height={size} style={{ transform:"rotate(-90deg)",position:"absolute" }}>
+        {/* Track */}
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--j-border)" strokeWidth={10} />
+        {/* Fill */}
+        <circle cx={size/2} cy={size/2} r={r} fill="none"
+          stroke="#00C8FF" strokeWidth={10} strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={off}
+          style={{ transition:"stroke-dashoffset 1.2s ease",filter:"drop-shadow(0 0 6px rgba(0,200,255,0.6))" }}
+        />
+        {/* Tick marks */}
+        {Array.from({length:20},(_,i)=>{
+          const a = (i/20)*360;
+          const rd = (a-90)*(Math.PI/180);
+          const ro = size/2-2;
+          return <line key={i}
+            x1={size/2+(ro-5)*Math.cos(rd)} y1={size/2+(ro-5)*Math.sin(rd)}
+            x2={size/2+ro*Math.cos(rd)} y2={size/2+ro*Math.sin(rd)}
+            stroke={i%5===0?"rgba(0,200,255,0.4)":"rgba(0,200,255,0.15)"} strokeWidth={i%5===0?1.5:0.8}
+          />;
+        })}
+      </svg>
+      <div style={{ textAlign:"center",position:"relative",zIndex:1 }}>
+        <div style={{ fontFamily:"Exo 2,sans-serif",fontWeight:800,fontSize:size*0.22,color:"#00C8FF",lineHeight:1,textShadow:"0 0 20px rgba(0,200,255,0.6)" }}>{score}</div>
+        <div style={{ fontFamily:"JetBrains Mono,monospace",fontSize:size*0.09,color:"var(--j-muted)" }}>/100</div>
+      </div>
+    </div>
+  );
+}
 
 export default function Feedback() {
   const { id } = useParams();
   const [interview, setInterview] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading,   setLoading]   = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [id]);
+  useEffect(()=>{
+    getDoc(doc(db,"interviews",id))
+      .then((s)=>{ if(s.exists()) setInterview({id:s.id,...s.data()}); })
+      .finally(()=>setLoading(false));
+  },[id]);
 
-  const fetchData = async () => {
-    try {
-      const snap = await getDoc(doc(db, "interviews", id));
-      if (snap.exists()) setInterview({ id: snap.id, ...snap.data() });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) return (
+    <div style={{ minHeight:"80vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20 }}>
+      <ArcReactor size="lg" />
+      <span className="hud-label-arc" style={{ letterSpacing:3 }}>RETRIEVING REPORT...</span>
+    </div>
+  );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-10 h-10 border-2 border-jarvis-border border-t-jarvis-cyan rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (!interview?.feedback) return (
+    <div style={{ minHeight:"80vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16 }}>
+      <p className="hud-label-arc">REPORT NOT FOUND</p>
+      <Link to="/dashboard" className="btn-arc-solid">RETURN TO BASE</Link>
+    </div>
+  );
 
-  if (!interview?.feedback) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-jarvis-muted">Feedback not found.</p>
-        <Link to="/dashboard" className="text-jarvis-cyan hover:underline">Back to Dashboard</Link>
-      </div>
-    );
-  }
-
-  const { feedback, role, level, type, techstack, createdAt } = interview;
-  const overallLabel = getScoreLabel(feedback.totalScore);
+  const { feedback,role,level,techstack,createdAt } = interview;
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10 animate-fade-in">
-      
-      {/* Header */}
-      <div className="mb-10">
-        <p className="text-jarvis-muted text-xs font-mono uppercase tracking-widest mb-2">
-          Interview Evaluation
-        </p>
-        <h1 className="font-display font-bold text-3xl text-jarvis-text capitalize">
-          {role} <span className="text-jarvis-muted font-normal text-xl">— {level}</span>
-        </h1>
-        <p className="text-jarvis-muted text-sm mt-1 font-mono">{formatDate(createdAt)}</p>
-      </div>
+    <div className="page-wrapper hud-grid">
+      <div className="container" style={{ paddingTop:48,paddingBottom:64 }}>
 
-      {/* Score hero section */}
-      <div className="bg-jarvis-card border border-jarvis-border rounded-xl p-8 mb-8 flex flex-col sm:flex-row items-center gap-8">
-        <div className="flex-shrink-0">
-          <ProgressRing score={feedback.totalScore} size={150} strokeWidth={10} />
-        </div>
-        <div className="flex-1 text-center sm:text-left">
-          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-sm font-mono mb-3 ${overallLabel.bg}`}>
-            <span className={overallLabel.color}>{overallLabel.label}</span>
+        {/* Header */}
+        <div className="animate-fadeInUp" style={{ marginBottom:32,paddingBottom:24,borderBottom:"1px solid var(--j-border)" }}>
+          <p className="hud-label" style={{ marginBottom:8 }}>PERFORMANCE REPORT</p>
+          <h1 style={{ fontFamily:"Exo 2,sans-serif",fontWeight:800,fontSize:"clamp(24px,4vw,40px)",color:"#E8F4FF",letterSpacing:3,textTransform:"uppercase" }}>
+            {role}
+          </h1>
+          <div style={{ display:"flex",gap:16,marginTop:8,flexWrap:"wrap" }}>
+            <span className="hud-label">{level?.toUpperCase()}</span>
+            <span className="hud-label">·</span>
+            <span className="hud-label-arc">{fmtDate(createdAt)}</span>
           </div>
-          <h2 className="font-display font-bold text-2xl text-jarvis-text mb-3">
-            Overall Performance
-          </h2>
-          <p className="text-jarvis-muted leading-relaxed">
-            {feedback.finalAssessment}
-          </p>
         </div>
-      </div>
 
-      {/* Category scores */}
-      <div className="mb-8">
-        <h2 className="font-display font-semibold text-lg text-jarvis-text mb-5 flex items-center gap-3">
-          <span>Score Breakdown</span>
-          <div className="flex-1 h-px bg-jarvis-border" />
-        </h2>
+        {/* Score hero */}
+        <div className="hud-panel hud-panel-corners scan-panel animate-fadeInUp" style={{ padding:36,marginBottom:20,display:"flex",gap:40,alignItems:"center",flexWrap:"wrap" }}>
+          <ScoreRing score={feedback.totalScore} size={160} />
+          <div style={{ flex:1,minWidth:200 }}>
+            <div className="hud-badge" style={{ marginBottom:16 }}>
+              <span style={{ width:6,height:6,borderRadius:"50%",background:"#00C8FF",boxShadow:"0 0 8px rgba(0,200,255,0.8)",display:"inline-block" }} />
+              {scoreLabel(feedback.totalScore)}
+            </div>
+            <h2 style={{ fontFamily:"Exo 2,sans-serif",fontWeight:700,fontSize:20,color:"#E8F4FF",letterSpacing:2,marginBottom:14 }}>
+              OVERALL ASSESSMENT
+            </h2>
+            <p style={{ color:"var(--j-muted)",lineHeight:1.85,fontSize:14 }}>{feedback.finalAssessment}</p>
+          </div>
+        </div>
 
-        <div className="space-y-4">
-          {feedback.categoryScores?.map((cat, i) => {
-            const catLabel = getScoreLabel(cat.score);
-            return (
-              <div
-                key={i}
-                className="bg-jarvis-card border border-jarvis-border rounded-lg p-5 hover:border-jarvis-cyan/20 transition-colors"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span>{CATEGORY_ICONS[cat.name] || "📊"}</span>
-                    <span className="font-display font-semibold text-jarvis-text">{cat.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-sm font-mono ${catLabel.color}`}>{catLabel.label}</span>
-                    <span className={`font-display font-bold text-lg ${catLabel.color}`}>
-                      {cat.score}
-                      <span className="text-jarvis-muted text-sm font-normal">/100</span>
+        {/* Category scores */}
+        <div className="animate-fadeInUp" style={{ animationDelay:"0.1s",marginBottom:20 }}>
+          <div className="hud-divider" style={{ marginBottom:16 }}>
+            <span className="hud-label">EVALUATION VECTORS</span>
+          </div>
+          <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+            {feedback.categoryScores?.map((cat,i)=>(
+              <div key={i} className="hud-panel" style={{ padding:20 }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                    <span className="hud-label-arc">{CATS[cat.name]||String(i+1).padStart(2,"0")}</span>
+                    <span style={{ fontFamily:"Exo 2,sans-serif",fontWeight:600,fontSize:15,color:"#E8F4FF",letterSpacing:1 }}>
+                      {cat.name.toUpperCase()}
                     </span>
                   </div>
+                  <span style={{ fontFamily:"Exo 2,sans-serif",fontWeight:800,fontSize:24,color:"#00C8FF",textShadow:"0 0 16px rgba(0,200,255,0.5)" }}>
+                    {cat.score}<span style={{ fontSize:11,color:"var(--j-muted)" }}>/100</span>
+                  </span>
                 </div>
-
-                {/* Score bar */}
-                <div className="h-1.5 bg-jarvis-border rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full rounded-full transition-all duration-1000"
-                    style={{
-                      width: `${cat.score}%`,
-                      background: cat.score >= 80 ? "#4ade80" : cat.score >= 60 ? "#00E5FF" : cat.score >= 40 ? "#facc15" : "#f87171",
-                    }}
-                  />
+                <div className="hud-bar" style={{ marginBottom:10 }}>
+                  <div className="hud-bar-fill" style={{ width:`${cat.score}%` }} />
                 </div>
-
-                <p className="text-jarvis-muted text-sm leading-relaxed">{cat.comment}</p>
+                <p style={{ color:"var(--j-muted)",fontSize:13,lineHeight:1.75 }}>{cat.comment}</p>
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Strengths & Improvements */}
-      <div className="grid sm:grid-cols-2 gap-6 mb-8">
-        {/* Strengths */}
-        <div className="bg-jarvis-card border border-green-400/20 rounded-lg p-5">
-          <h3 className="font-display font-semibold text-green-400 mb-4 flex items-center gap-2">
-            <span>✦</span>
-            <span>Strengths</span>
-          </h3>
-          <ul className="space-y-2">
-            {feedback.strengths?.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-jarvis-muted">
-                <span className="text-green-400 mt-0.5 flex-shrink-0">→</span>
-                <span>{s}</span>
-              </li>
             ))}
-          </ul>
+          </div>
         </div>
 
-        {/* Areas for improvement */}
-        <div className="bg-jarvis-card border border-yellow-400/20 rounded-lg p-5">
-          <h3 className="font-display font-semibold text-yellow-400 mb-4 flex items-center gap-2">
-            <span>◈</span>
-            <span>Areas to Improve</span>
-          </h3>
-          <ul className="space-y-2">
-            {feedback.areasForImprovement?.map((a, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-jarvis-muted">
-                <span className="text-yellow-400 mt-0.5 flex-shrink-0">→</span>
-                <span>{a}</span>
-              </li>
-            ))}
-          </ul>
+        {/* Strengths + Improvements */}
+        <div className="animate-fadeInUp" style={{ animationDelay:"0.18s",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20 }}>
+          <div className="hud-panel hud-panel-corners" style={{ padding:22 }}>
+            <p className="hud-label-arc" style={{ marginBottom:16,letterSpacing:3 }}>STRENGTHS IDENTIFIED</p>
+            <ul style={{ listStyle:"none",display:"flex",flexDirection:"column",gap:10 }}>
+              {feedback.strengths?.map((s,i)=>(
+                <li key={i} style={{ display:"flex",gap:10,color:"var(--j-muted)",fontSize:13,lineHeight:1.7 }}>
+                  <span style={{ color:"var(--j-arc)",flexShrink:0,fontFamily:"JetBrains Mono,monospace",fontSize:11 }}>→</span>{s}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="hud-panel hud-panel-corners" style={{ padding:22 }}>
+            <p className="hud-label" style={{ marginBottom:16,letterSpacing:3 }}>AREAS FOR IMPROVEMENT</p>
+            <ul style={{ listStyle:"none",display:"flex",flexDirection:"column",gap:10 }}>
+              {feedback.areasForImprovement?.map((a,i)=>(
+                <li key={i} style={{ display:"flex",gap:10,color:"var(--j-muted)",fontSize:13,lineHeight:1.7 }}>
+                  <span style={{ color:"var(--j-arc-dim)",flexShrink:0,fontFamily:"JetBrains Mono,monospace",fontSize:11 }}>→</span>{a}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-      </div>
 
-      {/* Tech stack used */}
-      <div className="mb-8">
-        <p className="text-jarvis-muted text-xs font-mono uppercase tracking-widest mb-3">Tech Stack Evaluated</p>
-        <div className="flex flex-wrap gap-2">
-          {techstack?.map((t) => (
-            <span key={t} className="px-3 py-1 rounded border border-jarvis-border text-jarvis-cyan/70 text-sm font-mono">
-              {t}
-            </span>
-          ))}
+        {/* Tech stack */}
+        <div className="animate-fadeInUp" style={{ marginBottom:36 }}>
+          <p className="hud-label" style={{ marginBottom:12 }}>TECHNOLOGIES EVALUATED</p>
+          <div style={{ display:"flex",flexWrap:"wrap",gap:7 }}>
+            {techstack?.map((t)=><span key={t} className="hud-tag" style={{ color:"rgba(0,200,255,0.6)" }}>{t.toUpperCase()}</span>)}
+          </div>
         </div>
-      </div>
 
-      {/* Action buttons */}
-      <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-jarvis-border">
-        <Link
-          to="/dashboard"
-          className="flex-1 py-3 rounded border border-jarvis-border text-jarvis-muted font-display font-semibold text-center hover:border-jarvis-cyan/30 hover:text-jarvis-cyan transition-all"
-        >
-          ← Dashboard
-        </Link>
-        <Link
-          to="/setup"
-          className="flex-1 py-3 rounded bg-jarvis-cyan text-jarvis-bg font-display font-bold text-center hover:bg-jarvis-cyan/90 transition-all shadow-cyan"
-        >
-          New Interview
-        </Link>
+        {/* Actions */}
+        <div style={{ display:"flex",gap:12,flexWrap:"wrap",borderTop:"1px solid var(--j-border)",paddingTop:28 }}>
+          <Link to="/dashboard" className="btn-ghost-arc" style={{ flex:1,justifyContent:"center",minWidth:140,letterSpacing:2 }}>← MISSION LOGS</Link>
+          <Link to="/setup" className="btn-arc-solid" style={{ flex:2,justifyContent:"center",minWidth:180,letterSpacing:2 }}>INITIATE NEW SESSION →</Link>
+        </div>
       </div>
     </div>
   );

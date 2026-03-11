@@ -1,354 +1,252 @@
 // src/pages/Setup.jsx
-// User fills in interview preferences — then AI generates questions
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
 import { generateQuestions } from "../lib/gemini";
-
-// Available tech options
-const TECH_OPTIONS = [
-  "React", "Vue", "Angular", "Next.js", "TypeScript", "JavaScript",
-  "Node.js", "Express", "Python", "Django", "FastAPI", "Java", "Spring Boot",
-  "MongoDB", "PostgreSQL", "MySQL", "Redis", "Docker", "Kubernetes",
-  "AWS", "Git", "GraphQL", "REST API", "Flutter", "React Native",
-];
+import ArcReactor from "../components/ArcReactor";
 
 const ROLES = [
-  "Frontend Developer", "Backend Developer", "Full Stack Developer",
-  "React Developer", "Node.js Developer", "Python Developer",
-  "Software Engineer", "Data Engineer", "DevOps Engineer",
-  "Mobile Developer", "UI/UX Developer",
+  "Frontend Developer","Backend Developer","Full Stack Developer",
+  "React Developer","Node.js Developer","Python Developer",
+  "Software Engineer","Data Engineer","DevOps Engineer","Mobile Developer",
+];
+const TECHS = [
+  "React","Vue","Angular","Next.js","TypeScript","JavaScript",
+  "Node.js","Express","Python","Django","FastAPI","Java",
+  "MongoDB","PostgreSQL","MySQL","Redis","Docker","AWS",
+  "Git","GraphQL","React Native","Flutter","Tailwind CSS","Spring Boot",
 ];
 
 export default function Setup() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const { user }   = useAuth();
+  const navigate   = useNavigate();
+  const [step,     setStep]    = useState(1);
+  const [form,     setForm]    = useState({ role:"", customRole:"", level:"Junior", type:"Technical", amount:5, techstack:[] });
+  const [loading,  setLoading] = useState(false);
+  const [error,    setError]   = useState("");
 
-  // Form state
-  const [form, setForm] = useState({
-    role: "",
-    customRole: "",
-    level: "Junior",
-    type: "Technical",
-    amount: 5,
-    techstack: [],
-  });
+  const toggleTech = (t) =>
+    setForm((p) => ({ ...p, techstack: p.techstack.includes(t) ? p.techstack.filter((x)=>x!==t) : [...p.techstack,t] }));
 
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(1); // Step 1: Role, Step 2: Tech, Step 3: Config
-  const [error, setError] = useState("");
-
-  // Toggle a tech item in the list
-  const toggleTech = (tech) => {
-    setForm((prev) => ({
-      ...prev,
-      techstack: prev.techstack.includes(tech)
-        ? prev.techstack.filter((t) => t !== tech)
-        : [...prev.techstack, tech],
-    }));
-  };
-
-  // Start the interview — generate questions and save to Firebase
   const handleStart = async () => {
-    setError("");
-    const role = form.role === "Other" ? form.customRole : form.role;
-
-    if (!role) return setError("Please enter a job role.");
-    if (form.techstack.length === 0) return setError("Please select at least one technology.");
-
-    setLoading(true);
+    const role = form.role === "Other" ? form.customRole.trim() : form.role;
+    if (!role) return setError("ROLE NOT SPECIFIED");
+    if (!form.techstack.length) return setError("NO TECHNOLOGIES SELECTED");
+    setLoading(true); setError("");
     try {
-      // 1. Generate questions with AI
-      const questions = await generateQuestions({
-        role,
-        level: form.level,
-        techstack: form.techstack,
-        type: form.type,
-        amount: form.amount,
+      const questions = await generateQuestions({ role, level:form.level, techstack:form.techstack, type:form.type, amount:form.amount });
+      const ref = await addDoc(collection(db,"interviews"), {
+        userId:user.uid, role, level:form.level, type:form.type,
+        techstack:form.techstack, questions, finalized:false, feedback:null,
+        transcript:[], createdAt:serverTimestamp(),
       });
-
-      // 2. Save interview to Firestore
-      const docRef = await addDoc(collection(db, "interviews"), {
-        userId: user.uid,
-        role,
-        level: form.level,
-        type: form.type,
-        techstack: form.techstack,
-        questions,
-        finalized: false,
-        feedback: null,
-        transcript: [],
-        createdAt: serverTimestamp(),
-      });
-
-      // 3. Navigate to the interview page
-      navigate(`/interview/${docRef.id}`);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to generate interview. Check your API key and try again.");
+      navigate(`/interview/${ref.id}`);
+    } catch(e) {
+      console.error(e);
+      setError("QUESTION GENERATION FAILED — CHECK GEMINI API KEY IN .ENV");
       setLoading(false);
     }
   };
 
+  const stepLabels = ["TARGET ROLE", "TECH STACK", "PARAMETERS"];
+
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10">
-      
-      {/* Header */}
-      <div className="mb-10">
-        <p className="text-jarvis-muted text-xs font-mono tracking-widest uppercase mb-2">
-          Configure Interview
-        </p>
-        <h1 className="font-display font-bold text-3xl text-jarvis-text">
-          Set Up Your <span className="text-jarvis-cyan">Session</span>
-        </h1>
-      </div>
+    <div className="page-wrapper hud-grid">
+      <div className="container-sm" style={{ paddingTop:48, paddingBottom:64 }}>
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-8">
-        {[1, 2, 3].map((s) => (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono border transition-all duration-200 ${
-                step >= s
-                  ? "border-jarvis-cyan bg-jarvis-cyan/20 text-jarvis-cyan"
-                  : "border-jarvis-border text-jarvis-muted"
-              }`}
-            >
-              {s}
+        {/* Header */}
+        <div className="animate-fadeInUp" style={{ marginBottom:32 }}>
+          <p className="hud-label" style={{ marginBottom:8 }}>MISSION CONFIGURATION</p>
+          <h1 className="setup-title">
+            CONFIGURE <span className="holo-text">SESSION</span>
+          </h1>
+        </div>
+
+        {/* Step indicator */}
+        <div className="steps animate-fadeInUp" style={{ marginBottom:28 }}>
+          {stepLabels.map((label, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center" }}>
+              <div className={`step-node ${step>i+1?"done":step===i+1?"active":""}`}>
+                {step>i+1 ? "✓" : String(i+1).padStart(2,"0")}
+              </div>
+              {i < stepLabels.length-1 && <div className={`step-connector ${step>i+1?"done":""}`} />}
             </div>
-            {s < 3 && (
-              <div
-                className={`flex-1 h-px w-12 transition-all duration-200 ${
-                  step > s ? "bg-jarvis-cyan/50" : "bg-jarvis-border"
-                }`}
-              />
-            )}
-          </div>
-        ))}
-        <span className="ml-3 text-jarvis-muted text-xs font-mono">
-          {step === 1 ? "Role" : step === 2 ? "Tech Stack" : "Settings"}
-        </span>
-      </div>
+          ))}
+          <span className="hud-label-arc" style={{ marginLeft:16 }}>{stepLabels[step-1]}</span>
+        </div>
 
-      <div className="bg-jarvis-card border border-jarvis-border rounded-lg p-6 space-y-6">
+        {/* Panel */}
+        <div className="hud-panel hud-panel-corners scan-panel animate-fadeInUp" style={{ padding:30 }}>
 
-        {/* ─── STEP 1: ROLE ─── */}
-        {step === 1 && (
-          <>
+          {/* ── STEP 1 ── */}
+          {step === 1 && (
             <div>
-              <label className="block text-jarvis-muted text-xs font-mono uppercase tracking-widest mb-3">
-                Job Role
-              </label>
-              <div className="grid grid-cols-2 gap-2 mb-3">
+              <p className="hud-label" style={{ marginBottom:16 }}>SELECT TARGET ROLE</p>
+              <div className="role-grid">
                 {ROLES.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setForm((p) => ({ ...p, role: r }))}
-                    className={`px-3 py-2 rounded text-sm text-left font-body transition-all duration-150 border ${
-                      form.role === r
-                        ? "border-jarvis-cyan bg-jarvis-cyan/10 text-jarvis-cyan"
-                        : "border-jarvis-border text-jarvis-muted hover:border-jarvis-cyan/30 hover:text-jarvis-text"
-                    }`}
-                  >
-                    {r}
-                  </button>
+                  <button key={r} onClick={() => setForm((p)=>({...p,role:r}))}
+                    className={`role-btn ${form.role===r?"active":""}`}>{r}</button>
                 ))}
-                <button
-                  onClick={() => setForm((p) => ({ ...p, role: "Other" }))}
-                  className={`px-3 py-2 rounded text-sm text-left font-body transition-all duration-150 border ${
-                    form.role === "Other"
-                      ? "border-jarvis-cyan bg-jarvis-cyan/10 text-jarvis-cyan"
-                      : "border-jarvis-border text-jarvis-muted hover:border-jarvis-cyan/30"
-                  }`}
-                >
-                  Other...
-                </button>
+                <button onClick={() => setForm((p)=>({...p,role:"Other"}))}
+                  className={`role-btn ${form.role==="Other"?"active":""}`}>CUSTOM ROLE...</button>
               </div>
               {form.role === "Other" && (
-                <input
-                  type="text"
-                  placeholder="e.g., Blockchain Developer"
+                <input className="hud-input" style={{ marginTop:14 }}
+                  placeholder="Enter custom role..."
                   value={form.customRole}
-                  onChange={(e) => setForm((p) => ({ ...p, customRole: e.target.value }))}
-                  className="w-full bg-jarvis-bg border border-jarvis-border rounded px-4 py-2.5 text-jarvis-text placeholder-jarvis-muted/50 focus:outline-none focus:border-jarvis-cyan text-sm font-body"
-                />
+                  onChange={(e)=>setForm((p)=>({...p,customRole:e.target.value}))} />
               )}
+              {error && <p className="err-txt">{error}</p>}
+              <button className="btn-arc-solid" style={{ width:"100%",marginTop:22,justifyContent:"center",letterSpacing:2 }}
+                onClick={()=>{ if(!form.role) return setError("ROLE NOT SPECIFIED"); setError(""); setStep(2); }}>
+                CONFIRM ROLE →
+              </button>
             </div>
+          )}
 
-            <button
-              onClick={() => {
-                if (!form.role && !form.customRole) return setError("Select a role first");
-                setError("");
-                setStep(2);
-              }}
-              disabled={!form.role}
-              className="w-full py-3 rounded bg-jarvis-cyan text-jarvis-bg font-display font-bold hover:bg-jarvis-cyan/90 transition-colors disabled:opacity-40"
-            >
-              Next → Tech Stack
-            </button>
-          </>
-        )}
-
-        {/* ─── STEP 2: TECH STACK ─── */}
-        {step === 2 && (
-          <>
+          {/* ── STEP 2 ── */}
+          {step === 2 && (
             <div>
-              <label className="block text-jarvis-muted text-xs font-mono uppercase tracking-widest mb-3">
-                Select Tech Stack ({form.techstack.length} selected)
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {TECH_OPTIONS.map((tech) => (
-                  <button
-                    key={tech}
-                    onClick={() => toggleTech(tech)}
-                    className={`px-3 py-1.5 rounded text-sm font-mono transition-all duration-150 border ${
-                      form.techstack.includes(tech)
-                        ? "border-jarvis-cyan bg-jarvis-cyan/10 text-jarvis-cyan"
-                        : "border-jarvis-border text-jarvis-muted hover:border-jarvis-cyan/30 hover:text-jarvis-text"
-                    }`}
-                  >
-                    {tech}
-                  </button>
+              <p className="hud-label" style={{ marginBottom:6 }}>SELECT TECHNOLOGIES</p>
+              <p className="hud-label-arc" style={{ marginBottom:16 }}>{form.techstack.length} SELECTED</p>
+              <div className="tech-grid">
+                {TECHS.map((t) => (
+                  <button key={t} onClick={()=>toggleTech(t)}
+                    className={`tech-btn ${form.techstack.includes(t)?"active":""}`}>{t}</button>
                 ))}
               </div>
+              {error && <p className="err-txt">{error}</p>}
+              <div style={{ display:"flex",gap:10,marginTop:22 }}>
+                <button className="btn-ghost-arc" style={{ flex:1,justifyContent:"center" }} onClick={()=>setStep(1)}>← BACK</button>
+                <button className="btn-arc-solid" style={{ flex:2,justifyContent:"center",letterSpacing:2 }}
+                  onClick={()=>{ if(!form.techstack.length) return setError("NO TECHNOLOGIES SELECTED"); setError(""); setStep(3); }}>
+                  CONFIRM STACK →
+                </button>
+              </div>
             </div>
+          )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 py-3 rounded border border-jarvis-border text-jarvis-muted font-display font-semibold hover:border-jarvis-cyan/30 transition-colors"
-              >
-                ← Back
-              </button>
-              <button
-                onClick={() => {
-                  if (form.techstack.length === 0) return setError("Select at least one tech");
-                  setError("");
-                  setStep(3);
-                }}
-                className="flex-1 py-3 rounded bg-jarvis-cyan text-jarvis-bg font-display font-bold hover:bg-jarvis-cyan/90 transition-colors"
-              >
-                Next → Settings
-              </button>
-            </div>
-          </>
-        )}
+          {/* ── STEP 3 ── */}
+          {step === 3 && (
+            <div style={{ display:"flex",flexDirection:"column",gap:24 }}>
 
-        {/* ─── STEP 3: SETTINGS ─── */}
-        {step === 3 && (
-          <>
-            {/* Experience Level */}
-            <div>
-              <label className="block text-jarvis-muted text-xs font-mono uppercase tracking-widest mb-3">
-                Experience Level
-              </label>
-              <div className="flex gap-2">
-                {["Junior", "Mid", "Senior"].map((lvl) => (
-                  <button
-                    key={lvl}
-                    onClick={() => setForm((p) => ({ ...p, level: lvl }))}
-                    className={`flex-1 py-2.5 rounded text-sm font-display font-semibold border transition-all duration-150 ${
-                      form.level === lvl
-                        ? "border-jarvis-cyan bg-jarvis-cyan/10 text-jarvis-cyan"
-                        : "border-jarvis-border text-jarvis-muted hover:border-jarvis-cyan/30"
-                    }`}
-                  >
-                    {lvl}
-                  </button>
+              <div>
+                <p className="hud-label" style={{ marginBottom:12 }}>EXPERIENCE LEVEL</p>
+                <div style={{ display:"flex",gap:8 }}>
+                  {["Junior","Mid","Senior"].map((l) => (
+                    <button key={l} onClick={()=>setForm((p)=>({...p,level:l}))}
+                      className={form.level===l?"btn-arc-solid":"btn-ghost-arc"}
+                      style={{ flex:1,justifyContent:"center",letterSpacing:2,fontSize:12 }}>{l.toUpperCase()}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="hud-label" style={{ marginBottom:12 }}>QUESTION TYPE</p>
+                <div style={{ display:"flex",gap:8 }}>
+                  {["Technical","Behavioral","Mixed"].map((t) => (
+                    <button key={t} onClick={()=>setForm((p)=>({...p,type:t}))}
+                      className={form.type===t?"btn-arc-solid":"btn-ghost-arc"}
+                      style={{ flex:1,justifyContent:"center",letterSpacing:2,fontSize:12 }}>{t.toUpperCase()}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display:"flex",justifyContent:"space-between",marginBottom:10 }}>
+                  <p className="hud-label">QUESTION COUNT</p>
+                  <span style={{ fontFamily:"JetBrains Mono,monospace",fontSize:16,color:"#00C8FF",fontWeight:700,textShadow:"0 0 12px rgba(0,200,255,0.6)" }}>
+                    {String(form.amount).padStart(2,"0")}
+                  </span>
+                </div>
+                <input type="range" min={3} max={10} value={form.amount}
+                  onChange={(e)=>setForm((p)=>({...p,amount:+e.target.value}))}
+                  style={{ width:"100%",accentColor:"#00C8FF" }} />
+                <div style={{ display:"flex",justifyContent:"space-between",marginTop:5 }}>
+                  <span className="hud-label">03 — QUICK</span>
+                  <span className="hud-label">10 — FULL</span>
+                </div>
+              </div>
+
+              {/* Mission briefing */}
+              <div className="setup-brief">
+                <p className="hud-label-arc" style={{ marginBottom:12 }}>MISSION BRIEFING</p>
+                {[
+                  ["ROLE",       form.role==="Other"?form.customRole:form.role],
+                  ["LEVEL",      form.level.toUpperCase()],
+                  ["TYPE",       form.type.toUpperCase()],
+                  ["QUESTIONS",  String(form.amount).padStart(2,"0")],
+                  ["STACK",      form.techstack.join(" · ")],
+                ].map(([k,v]) => (
+                  <div key={k} style={{ display:"flex",gap:12,marginBottom:7,alignItems:"flex-start" }}>
+                    <span className="hud-label" style={{ minWidth:90,flexShrink:0 }}>{k}</span>
+                    <span style={{ fontFamily:"JetBrains Mono,monospace",fontSize:12,color:"#E8F4FF",lineHeight:1.5 }}>{v}</span>
+                  </div>
                 ))}
               </div>
-            </div>
 
-            {/* Question Type */}
-            <div>
-              <label className="block text-jarvis-muted text-xs font-mono uppercase tracking-widest mb-3">
-                Question Type
-              </label>
-              <div className="flex gap-2">
-                {["Technical", "Behavioral", "Mixed"].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setForm((p) => ({ ...p, type: t }))}
-                    className={`flex-1 py-2.5 rounded text-sm font-display font-semibold border transition-all duration-150 ${
-                      form.type === t
-                        ? "border-jarvis-cyan bg-jarvis-cyan/10 text-jarvis-cyan"
-                        : "border-jarvis-border text-jarvis-muted hover:border-jarvis-cyan/30"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
+              {error && <p className="err-txt">{error}</p>}
+
+              <div style={{ display:"flex",gap:10 }}>
+                <button className="btn-ghost-arc" style={{ flex:1,justifyContent:"center" }} onClick={()=>setStep(2)}>← BACK</button>
+                <button className="btn-arc-solid" style={{ flex:2,justifyContent:"center",letterSpacing:2 }}
+                  onClick={handleStart} disabled={loading}>
+                  {loading
+                    ? <><ArcReactor size="sm" />&nbsp;&nbsp;GENERATING...</>
+                    : "LAUNCH MISSION →"}
+                </button>
               </div>
             </div>
-
-            {/* Number of Questions */}
-            <div>
-              <label className="block text-jarvis-muted text-xs font-mono uppercase tracking-widest mb-3">
-                Number of Questions: <span className="text-jarvis-cyan">{form.amount}</span>
-              </label>
-              <input
-                type="range"
-                min={3}
-                max={10}
-                value={form.amount}
-                onChange={(e) => setForm((p) => ({ ...p, amount: parseInt(e.target.value) }))}
-                className="w-full accent-jarvis-cyan"
-              />
-              <div className="flex justify-between text-jarvis-muted text-xs font-mono mt-1">
-                <span>3 (Quick)</span>
-                <span>7 (Standard)</span>
-                <span>10 (Full)</span>
-              </div>
-            </div>
-
-            {/* Summary */}
-            <div className="p-4 bg-jarvis-bg rounded border border-jarvis-border text-sm">
-              <p className="text-jarvis-muted font-mono text-xs uppercase tracking-widest mb-2">Session Summary</p>
-              <div className="space-y-1 text-jarvis-muted">
-                <p>Role: <span className="text-jarvis-text">{form.role === "Other" ? form.customRole : form.role}</span></p>
-                <p>Level: <span className="text-jarvis-text">{form.level}</span></p>
-                <p>Type: <span className="text-jarvis-text">{form.type}</span></p>
-                <p>Questions: <span className="text-jarvis-text">{form.amount}</span></p>
-                <p>Stack: <span className="text-jarvis-text">{form.techstack.join(", ")}</span></p>
-              </div>
-            </div>
-
-            {error && (
-              <p className="text-red-400 text-sm">{error}</p>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(2)}
-                className="flex-1 py-3 rounded border border-jarvis-border text-jarvis-muted font-display font-semibold hover:border-jarvis-cyan/30 transition-colors"
-              >
-                ← Back
-              </button>
-              <button
-                onClick={handleStart}
-                disabled={loading}
-                className="flex-1 py-3 rounded bg-jarvis-cyan text-jarvis-bg font-display font-bold hover:bg-jarvis-cyan/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-jarvis-bg/30 border-t-jarvis-bg rounded-full animate-spin" />
-                    <span>Generating...</span>
-                  </>
-                ) : (
-                  "Launch Interview →"
-                )}
-              </button>
-            </div>
-          </>
-        )}
-
-        {error && step !== 3 && (
-          <p className="text-red-400 text-sm">{error}</p>
-        )}
+          )}
+        </div>
       </div>
+
+      <style>{`
+        .setup-title {
+          font-family:"Exo 2",sans-serif; font-weight:800;
+          font-size:clamp(28px,5vw,44px); color:#E8F4FF; letter-spacing:4px;
+        }
+        .steps { display:flex; align-items:center; }
+        .step-node {
+          width:32px; height:32px; border-radius:50%;
+          border:1px solid var(--j-border); background:var(--j-bg2);
+          color:var(--j-muted); font-family:"JetBrains Mono",monospace;
+          font-size:11px; display:flex; align-items:center; justify-content:center;
+          transition:all 0.2s; flex-shrink:0; letter-spacing:0;
+        }
+        .step-node.active { border-color:var(--j-arc); background:rgba(0,200,255,0.1); color:var(--j-arc); box-shadow:0 0 12px rgba(0,200,255,0.2); }
+        .step-node.done   { border-color:var(--j-arc); background:var(--j-arc); color:var(--j-bg); font-weight:700; }
+        .step-connector   { width:32px; height:1px; background:var(--j-border); transition:background 0.2s; }
+        .step-connector.done { background:var(--j-arc); box-shadow:0 0 6px rgba(0,200,255,0.4); }
+        .role-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+        .role-btn {
+          padding:11px 14px; text-align:left; border-radius:3px;
+          border:1px solid var(--j-border); background:var(--j-bg2);
+          color:var(--j-muted); font-family:"JetBrains Mono",monospace; font-size:12px;
+          cursor:pointer; transition:all 0.15s; letter-spacing:0.3px;
+        }
+        .role-btn:hover { border-color:var(--j-border2); color:var(--j-white); }
+        .role-btn.active { border-color:var(--j-arc); background:rgba(0,200,255,0.08); color:var(--j-arc); box-shadow:0 0 10px rgba(0,200,255,0.1); }
+        .tech-grid { display:flex; flex-wrap:wrap; gap:7px; }
+        .tech-btn {
+          padding:6px 12px; border-radius:2px;
+          border:1px solid var(--j-border); background:var(--j-bg2);
+          color:var(--j-muted); font-family:"JetBrains Mono",monospace; font-size:11px;
+          cursor:pointer; transition:all 0.15s; letter-spacing:0.5px;
+        }
+        .tech-btn:hover { border-color:var(--j-border2); color:var(--j-white); }
+        .tech-btn.active { border-color:var(--j-arc); background:rgba(0,200,255,0.08); color:var(--j-arc); }
+        .setup-brief {
+          background:var(--j-bg); border:1px solid var(--j-border);
+          border-radius:3px; padding:18px;
+        }
+        .err-txt {
+          font-family:"JetBrains Mono",monospace; font-size:11px;
+          color:rgba(0,200,255,0.7); letter-spacing:1px; margin-top:8px;
+        }
+      `}</style>
     </div>
   );
 }

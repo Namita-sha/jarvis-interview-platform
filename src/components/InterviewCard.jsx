@@ -1,123 +1,116 @@
 // src/components/InterviewCard.jsx
-// Card shown on the dashboard for each past interview
-
 import { Link } from "react-router-dom";
 
-// Tech stack color mapping
-const TECH_COLORS = {
-  react: "#61DAFB",
-  "node.js": "#68A063",
-  typescript: "#3178C6",
-  javascript: "#F7DF1E",
-  python: "#3776AB",
-  java: "#ED8B00",
-  mongodb: "#47A248",
-  postgresql: "#336791",
-  "next.js": "#FFFFFF",
-  vue: "#4FC08D",
-  angular: "#DD0031",
-  docker: "#2496ED",
-};
-
-const getTechColor = (tech) => {
-  return TECH_COLORS[tech.toLowerCase()] || "#00E5FF";
-};
-
-// Score color based on value
-const getScoreColor = (score) => {
-  if (score >= 80) return "text-green-400";
-  if (score >= 60) return "text-jarvis-cyan";
-  if (score >= 40) return "text-yellow-400";
-  return "text-red-400";
-};
-
-// Format date nicely
-const formatDate = (timestamp) => {
-  if (!timestamp) return "Unknown date";
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+const fmtDate = (ts) => {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
 };
 
 export default function InterviewCard({ interview }) {
-  const { id, role, level, type, techstack, feedback, createdAt, finalized } = interview;
+  const { id, role, level, type, techstack, feedback, createdAt } = interview;
   const score = feedback?.totalScore;
 
   return (
-    <div className="group relative bg-jarvis-card border border-jarvis-border rounded-lg p-5 hover:border-jarvis-cyan/40 transition-all duration-300 hover:shadow-cyan/20 hover:shadow-lg flex flex-col gap-4 overflow-hidden">
-      
-      {/* Top glow on hover */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-jarvis-cyan/0 to-transparent group-hover:via-jarvis-cyan/50 transition-all duration-300" />
+    <div className="ivc scan-panel">
+      {/* Top accent */}
+      <div className="ivc-topline" />
+
+      {/* Corner brackets */}
+      <div className="ivc-c ivc-tl" />
+      <div className="ivc-c ivc-br" />
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="ivc-header">
         <div>
-          <h3 className="font-display font-semibold text-jarvis-text capitalize">
-            {role}
-          </h3>
-          <p className="text-jarvis-muted text-xs mt-1 font-mono">
-            {level} · {type}
-          </p>
+          <p className="hud-label-arc" style={{ marginBottom:6 }}>{type?.toUpperCase()} SESSION</p>
+          <h3 className="ivc-role">{role}</h3>
+          <p className="hud-label" style={{ marginTop:4 }}>{level?.toUpperCase()}</p>
         </div>
-
-        {/* Score badge */}
-        {score !== undefined ? (
-          <div className="flex flex-col items-center">
-            <span className={`font-display font-bold text-xl ${getScoreColor(score)}`}>
-              {score}
-            </span>
-            <span className="text-jarvis-muted text-xs">/100</span>
+        {score != null ? (
+          <div className="ivc-score-wrap">
+            <span className="ivc-score">{score}</span>
+            <span className="ivc-score-unit">/100</span>
           </div>
         ) : (
-          <span className="px-2 py-1 rounded text-xs bg-jarvis-border text-jarvis-muted font-mono">
-            {finalized ? "Processing" : "Not taken"}
-          </span>
+          <span className="ivc-pending">PENDING</span>
         )}
       </div>
 
-      {/* Tech stack */}
-      <div className="flex flex-wrap gap-1.5">
-        {(techstack || []).slice(0, 4).map((tech) => (
-          <span
-            key={tech}
-            className="px-2 py-0.5 rounded text-xs font-mono border border-jarvis-border"
-            style={{ color: getTechColor(tech) }}
-          >
-            {tech}
-          </span>
+      {/* Score arc bar */}
+      {score != null && (
+        <div className="hud-bar" style={{ margin:"12px 0" }}>
+          <div className="hud-bar-fill" style={{ width:`${score}%` }} />
+        </div>
+      )}
+
+      {/* Stack */}
+      <div className="ivc-tags">
+        {(techstack||[]).slice(0,4).map((t) => (
+          <span key={t} className="hud-tag">{t}</span>
         ))}
-        {(techstack || []).length > 4 && (
-          <span className="px-2 py-0.5 rounded text-xs font-mono border border-jarvis-border text-jarvis-muted">
-            +{techstack.length - 4}
-          </span>
+        {(techstack||[]).length > 4 && (
+          <span className="hud-tag">+{techstack.length-4}</span>
         )}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-auto pt-3 border-t border-jarvis-border">
-        <p className="text-jarvis-muted text-xs font-mono">{formatDate(createdAt)}</p>
-
-        <div className="flex gap-2">
-          {feedback ? (
-            <Link
-              to={`/feedback/${id}`}
-              className="px-3 py-1.5 rounded text-xs border border-jarvis-cyan/40 text-jarvis-cyan font-display hover:bg-jarvis-cyan/10 transition-colors"
-            >
-              View Feedback
-            </Link>
-          ) : (
-            <Link
-              to={`/interview/${id}`}
-              className="px-3 py-1.5 rounded text-xs border border-jarvis-blue/40 text-jarvis-blue font-display hover:bg-jarvis-blue/10 transition-colors"
-            >
-              Start Interview
-            </Link>
-          )}
-        </div>
+      <div className="ivc-footer">
+        <span className="hud-label">{fmtDate(createdAt)}</span>
+        {feedback
+          ? <Link to={`/feedback/${id}`} className="btn-arc"   style={{ padding:"7px 16px", fontSize:11 }}>VIEW REPORT</Link>
+          : <Link to={`/interview/${id}`} className="btn-arc-solid" style={{ padding:"7px 16px", fontSize:11 }}>INITIATE</Link>
+        }
       </div>
+
+      <style>{`
+        .ivc {
+          background:var(--j-bg3); border:1px solid var(--j-border);
+          border-radius:4px; padding:22px; position:relative; overflow:hidden;
+          display:flex; flex-direction:column; gap:12px;
+          transition:border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+        }
+        .ivc:hover {
+          border-color:var(--j-border2);
+          box-shadow:0 0 24px rgba(0,200,255,0.07);
+          transform:translateY(-2px);
+        }
+        .ivc-topline {
+          position:absolute; top:0; left:0; right:0; height:1px;
+          background:linear-gradient(90deg,transparent,rgba(0,200,255,0),transparent);
+          transition:background 0.2s;
+        }
+        .ivc:hover .ivc-topline {
+          background:linear-gradient(90deg,transparent,rgba(0,200,255,0.5),transparent);
+        }
+        .ivc-c { position:absolute; width:8px; height:8px; border-color:rgba(0,200,255,0.3); border-style:solid; }
+        .ivc-tl { top:0; left:0; border-width:1px 0 0 1px; }
+        .ivc-br { bottom:0; right:0; border-width:0 1px 1px 0; }
+        .ivc-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+        .ivc-role {
+          font-family:"Exo 2",sans-serif; font-weight:700;
+          font-size:16px; color:#E8F4FF; text-transform:capitalize; letter-spacing:0.5px;
+        }
+        .ivc-score-wrap { text-align:right; flex-shrink:0; }
+        .ivc-score {
+          font-family:"Exo 2",sans-serif; font-weight:800;
+          font-size:28px; color:#00C8FF;
+          text-shadow:0 0 16px rgba(0,200,255,0.5);
+        }
+        .ivc-score-unit { font-size:12px; color:var(--j-muted); margin-left:1px; }
+        .ivc-pending {
+          font-family:"JetBrains Mono",monospace; font-size:9px;
+          padding:4px 9px; border:1px solid var(--j-border);
+          background:var(--j-bg2); color:var(--j-muted); letter-spacing:2px;
+          border-radius:2px;
+        }
+        .ivc-tags { display:flex; flex-wrap:wrap; gap:5px; }
+        .ivc-footer {
+          display:flex; align-items:center; justify-content:space-between;
+          padding-top:12px; border-top:1px solid var(--j-border);
+          margin-top:auto;
+        }
+      `}</style>
     </div>
   );
 }

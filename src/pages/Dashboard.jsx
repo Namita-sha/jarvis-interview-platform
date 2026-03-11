@@ -1,136 +1,156 @@
 // src/pages/Dashboard.jsx
-// Shows all past interviews and stats
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
 import InterviewCard from "../components/InterviewCard";
+import ArcReactor from "../components/ArcReactor";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [interviews, setInterviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading,    setLoading]    = useState(true);
 
-  useEffect(() => {
-    fetchInterviews();
-  }, [user]);
+  useEffect(() => { fetchInterviews(); }, [user]);
 
   const fetchInterviews = async () => {
     try {
-      // Query Firestore for this user's interviews, newest first
       const q = query(
         collection(db, "interviews"),
         where("userId", "==", user.uid),
         orderBy("createdAt", "desc")
       );
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setInterviews(data);
-    } catch (error) {
-      console.error("Error fetching interviews:", error);
-    } finally {
-      setLoading(false);
-    }
+      const snap = await getDocs(q);
+      setInterviews(snap.docs.map((d) => ({ id:d.id, ...d.data() })));
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
-  // Calculate stats
-  const completedInterviews = interviews.filter((i) => i.feedback);
-  const avgScore = completedInterviews.length
-    ? Math.round(
-        completedInterviews.reduce((sum, i) => sum + (i.feedback?.totalScore || 0), 0) /
-          completedInterviews.length
-      )
-    : 0;
-  const bestScore = completedInterviews.length
-    ? Math.max(...completedInterviews.map((i) => i.feedback?.totalScore || 0))
-    : 0;
+  const completed = interviews.filter((i) => i.feedback);
+  const avgScore  = completed.length ? Math.round(completed.reduce((s,i) => s+(i.feedback?.totalScore||0),0)/completed.length) : 0;
+  const bestScore = completed.length ? Math.max(...completed.map((i) => i.feedback?.totalScore||0)) : 0;
+
+  const stats = [
+    { label:"TOTAL SESSIONS", value:interviews.length, unit:""     },
+    { label:"COMPLETED",      value:completed.length,  unit:""     },
+    { label:"AVERAGE SCORE",  value:avgScore,           unit:"/100" },
+    { label:"PEAK SCORE",     value:bestScore,          unit:"/100" },
+  ];
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-10">
-      
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
-        <div>
-          <p className="text-jarvis-muted text-sm font-mono mb-1">
-            Welcome back,
-          </p>
-          <h1 className="font-display font-bold text-3xl text-jarvis-text">
-            {user?.displayName?.split(" ")[0] || "Candidate"}
-          </h1>
-        </div>
-        <Link
-          to="/setup"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded border border-jarvis-cyan bg-jarvis-cyan/10 text-jarvis-cyan font-display font-semibold hover:bg-jarvis-cyan/20 transition-all duration-200 shadow-cyan/30 hover:shadow-cyan"
-        >
-          <span className="text-xl">+</span>
-          <span>New Interview</span>
-        </Link>
-      </div>
+    <div className="page-wrapper hud-grid">
+      <div className="container" style={{ paddingTop:48, paddingBottom:64 }}>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
-        {[
-          { label: "Total Sessions", value: interviews.length, unit: "" },
-          { label: "Completed", value: completedInterviews.length, unit: "" },
-          { label: "Average Score", value: avgScore, unit: "/100" },
-          { label: "Best Score", value: bestScore, unit: "/100" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="relative bg-jarvis-card border border-jarvis-border rounded-lg p-4 corner-tl corner-br overflow-hidden"
-          >
-            <p className="text-jarvis-muted text-xs font-mono mb-1">{stat.label}</p>
-            <p className="font-display font-bold text-2xl text-jarvis-cyan">
-              {stat.value}
-              <span className="text-jarvis-muted text-sm">{stat.unit}</span>
+        {/* Header */}
+        <div className="db-header animate-fadeInUp">
+          <div className="db-header-left">
+            <p className="hud-label" style={{ marginBottom:8 }}>OPERATOR PROFILE</p>
+            <h1 className="db-name">
+              {user?.displayName?.split(" ")[0]?.toUpperCase() || "OPERATOR"}
+            </h1>
+            <p className="hud-label-arc" style={{ marginTop:6 }}>
+              {user?.email}
             </p>
           </div>
-        ))}
-      </div>
-
-      {/* Interviews List */}
-      <div>
-        <h2 className="font-display font-semibold text-lg text-jarvis-text mb-6 flex items-center gap-3">
-          <span>Recent Interviews</span>
-          <div className="flex-1 h-px bg-jarvis-border" />
-        </h2>
-
-        {loading ? (
-          // Loading skeleton
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-52 bg-jarvis-card border border-jarvis-border rounded-lg animate-pulse" />
-            ))}
-          </div>
-        ) : interviews.length === 0 ? (
-          // Empty state
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-full border border-jarvis-border flex items-center justify-center mb-4">
-              <span className="text-2xl">🎙</span>
-            </div>
-            <p className="text-jarvis-text font-display font-semibold text-lg mb-2">
-              No interviews yet
-            </p>
-            <p className="text-jarvis-muted text-sm mb-6">
-              Start your first mock interview to get AI-powered feedback
-            </p>
-            <Link
-              to="/setup"
-              className="px-6 py-2.5 rounded border border-jarvis-cyan text-jarvis-cyan font-display text-sm hover:bg-jarvis-cyan/10 transition-colors"
-            >
-              Start First Interview
+          <div className="db-header-right">
+            <ArcReactor size="md" />
+            <Link to="/setup" className="btn-arc-solid" style={{ letterSpacing:2 }}>
+              + INITIATE INTERVIEW
             </Link>
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {interviews.map((interview) => (
-              <InterviewCard key={interview.id} interview={interview} />
-            ))}
+        </div>
+
+        {/* Stats */}
+        <div className="db-stats animate-fadeInUp" style={{ animationDelay:"0.08s" }}>
+          {stats.map((s, i) => (
+            <div key={s.label} className="hud-panel hud-panel-corners db-stat" style={{ animationDelay:`${i*0.06}s` }}>
+              <p className="hud-label" style={{ marginBottom:10 }}>{s.label}</p>
+              <p className="db-stat-val">
+                {s.value}
+                <span className="db-stat-unit">{s.unit}</span>
+              </p>
+              {/* mini arc bar */}
+              <div className="db-stat-arc">
+                <div className="hud-bar" style={{ marginTop:12 }}>
+                  <div className="hud-bar-fill" style={{ width:`${Math.min(100,(s.value/Math.max(10,s.value))*100)}%` }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Interviews */}
+        <div className="animate-fadeInUp" style={{ animationDelay:"0.16s" }}>
+          <div className="hud-divider" style={{ marginBottom:24 }}>
+            <span className="hud-label">MISSION LOGS — RECENT SESSIONS</span>
           </div>
-        )}
+
+          {loading ? (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:20 }}>
+              <ArcReactor size="md" />
+              <span className="hud-label-arc">RETRIEVING DATA...</span>
+            </div>
+          ) : interviews.length === 0 ? (
+            <div className="db-empty">
+              <ArcReactor size="lg" />
+              <h3 className="db-empty-title">NO SESSIONS LOGGED</h3>
+              <p className="db-empty-sub">Initiate your first interview session to begin performance tracking</p>
+              <Link to="/setup" className="btn-arc-solid" style={{ marginTop:28, letterSpacing:2 }}>
+                INITIATE FIRST SESSION →
+              </Link>
+            </div>
+          ) : (
+            <div className="db-grid">
+              {interviews.map((iv) => <InterviewCard key={iv.id} interview={iv} />)}
+            </div>
+          )}
+        </div>
       </div>
+
+      <style>{`
+        .db-header {
+          display:flex; justify-content:space-between; align-items:flex-end;
+          margin-bottom:36px; gap:16px; flex-wrap:wrap;
+          padding-bottom:24px;
+          border-bottom:1px solid var(--j-border);
+        }
+        .db-header-right { display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+        .db-name {
+          font-family:"Exo 2",sans-serif; font-weight:800;
+          font-size:clamp(32px,5vw,52px);
+          color:#E8F4FF; letter-spacing:4px; line-height:1.1;
+          text-shadow:0 0 30px rgba(0,200,255,0.1);
+        }
+        .db-stats {
+          display:grid; grid-template-columns:repeat(4,1fr);
+          gap:12px; margin-bottom:44px;
+        }
+        @media(max-width:768px){ .db-stats{grid-template-columns:repeat(2,1fr);} }
+        .db-stat { padding:20px 22px; }
+        .db-stat-val {
+          font-family:"Exo 2",sans-serif; font-weight:800;
+          font-size:44px; color:#00C8FF; line-height:1;
+          text-shadow:0 0 20px rgba(0,200,255,0.4);
+        }
+        .db-stat-unit { font-size:14px; color:var(--j-muted); font-weight:400; margin-left:2px; }
+        .db-grid {
+          display:grid; grid-template-columns:repeat(3,1fr); gap:16px;
+        }
+        @media(max-width:900px){ .db-grid{grid-template-columns:repeat(2,1fr);} }
+        @media(max-width:580px){ .db-grid{grid-template-columns:1fr;} }
+        .db-empty {
+          display:flex; flex-direction:column;
+          align-items:center; justify-content:center;
+          padding:80px 24px; text-align:center; gap:16px;
+        }
+        .db-empty-title {
+          font-family:"Exo 2",sans-serif; font-weight:700;
+          font-size:20px; color:#E8F4FF; letter-spacing:3px;
+          margin-top:8px;
+        }
+        .db-empty-sub { color:var(--j-muted); font-size:14px; max-width:360px; line-height:1.7; }
+      `}</style>
     </div>
   );
 }
