@@ -1,6 +1,3 @@
-// src/components/JarvisIntro.jsx
-// Cinematic JARVIS boot sequence with startup sound + voice
-
 import { useEffect, useState, useRef } from "react";
 
 const BOOT_LINES = [
@@ -23,7 +20,7 @@ How may I assist you today?
 `;
 
 export default function JarvisIntro({ onComplete }) {
-  const [phase, setPhase] = useState("boot"); // boot | speaking | done
+  const [phase, setPhase] = useState("boot");
   const [visibleLines, setVisible] = useState([]);
   const [speechText, setSpeechText] = useState("");
   const [bars, setBars] = useState(Array(28).fill(4));
@@ -34,11 +31,8 @@ export default function JarvisIntro({ onComplete }) {
   const startupSoundRef = useRef(null);
   const humRef = useRef(null);
 
-  // ─────────────────────────────────────────────
-  // Boot sequence
-  // ─────────────────────────────────────────────
+  // BOOT
   useEffect(() => {
-    // Play startup robotic sound
     startupSoundRef.current = new Audio("/sounds/jarvis-startup.mp3");
     startupSoundRef.current.volume = 0.6;
     startupSoundRef.current.play().catch(() => {});
@@ -56,32 +50,19 @@ export default function JarvisIntro({ onComplete }) {
     };
   }, []);
 
-  // ─────────────────────────────────────────────
-  // Speaking phase (Voice + Typewriter + Waveform)
-  // ─────────────────────────────────────────────
+  // SPEAKING
   useEffect(() => {
     if (phase !== "speaking") return;
 
-    // Background subtle hum
     humRef.current = new Audio("/sounds/arc-hum.mp3");
     humRef.current.loop = true;
     humRef.current.volume = 0.12;
     humRef.current.play().catch(() => {});
 
-    // Voice
     const speak = () => {
       const utterance = new SpeechSynthesisUtterance(INTRO_SPEECH);
       utterance.rate = 0.88;
       utterance.pitch = 0.78;
-      utterance.volume = 1;
-
-      const voices = synthRef.current.getVoices();
-      const preferred =
-        voices.find((v) => v.name.includes("Google UK English Male")) ||
-        voices.find((v) => v.lang === "en-GB") ||
-        voices.find((v) => v.lang === "en-US");
-
-      if (preferred) utterance.voice = preferred;
 
       utterance.onend = () => {
         setTimeout(() => setPhase("done"), 800);
@@ -93,7 +74,7 @@ export default function JarvisIntro({ onComplete }) {
 
     setTimeout(speak, 200);
 
-    // Typewriter effect
+    // typing effect
     let i = 0;
     timerRef.current = setInterval(() => {
       i++;
@@ -101,7 +82,7 @@ export default function JarvisIntro({ onComplete }) {
       if (i >= INTRO_SPEECH.length) clearInterval(timerRef.current);
     }, 35);
 
-    // Waveform animation
+    // waveform
     animRef.current = setInterval(() => {
       setBars(Array(28).fill(0).map(() =>
         Math.floor(Math.random() * 40) + 4
@@ -114,9 +95,7 @@ export default function JarvisIntro({ onComplete }) {
     };
   }, [phase]);
 
-  // ─────────────────────────────────────────────
-  // Done phase
-  // ─────────────────────────────────────────────
+  // DONE
   useEffect(() => {
     if (phase === "done") {
       humRef.current?.pause();
@@ -126,9 +105,7 @@ export default function JarvisIntro({ onComplete }) {
     }
   }, [phase, onComplete]);
 
-  // ─────────────────────────────────────────────
-  // Skip
-  // ─────────────────────────────────────────────
+  // SKIP
   const skip = () => {
     synthRef.current.cancel();
     startupSoundRef.current?.pause();
@@ -139,10 +116,10 @@ export default function JarvisIntro({ onComplete }) {
   };
 
   return (
-    <div className={`ji-overlay ${phase === "done" ? "ji-fade-out" : ""}`}>
-      <div className="ji-center">
+    <div className={`ji-overlay hud-grid ${phase === "done" ? "ji-fade-out" : ""}`}>
+      <div className="ji-center hud-panel hud-panel-corners scan-panel">
 
-        <h1 className="ji-title">
+        <h1 className="ji-title holo-text">
           JAR<span className="pink">VIS</span>
         </h1>
 
@@ -176,7 +153,7 @@ export default function JarvisIntro({ onComplete }) {
         )}
 
         <button className="ji-skip" onClick={skip}>
-          Skip Intro
+          SKIP INTRO
         </button>
       </div>
 
@@ -184,7 +161,7 @@ export default function JarvisIntro({ onComplete }) {
         .ji-overlay {
           position: fixed;
           inset: 0;
-          background: #050505;
+          background: var(--j-bg);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -197,22 +174,21 @@ export default function JarvisIntro({ onComplete }) {
         .ji-center {
           text-align: center;
           max-width: 600px;
-          padding: 20px;
+          padding: 30px;
         }
 
         .ji-title {
           font-size: 64px;
           font-weight: 800;
           letter-spacing: 6px;
-          color: #f0f0f0;
         }
 
-        .pink { color: #F4A7B9; }
+        .pink { color: var(--j-arc); }
 
         .ji-boot {
           margin-top: 30px;
           font-family: monospace;
-          color: #aaa;
+          color: var(--j-muted);
           text-align: left;
         }
 
@@ -232,16 +208,17 @@ export default function JarvisIntro({ onComplete }) {
 
         .ji-bar {
           width: 3px;
-          background: #F4A7B9;
+          background: var(--j-arc);
           border-radius: 2px;
           transition: height 0.1s ease;
+          box-shadow: 0 0 6px rgba(0,200,255,0.5);
         }
 
         .ji-speech {
           margin-top: 20px;
-          font-size: 16px;
+          font-size: 15px;
           line-height: 1.7;
-          color: #ddd;
+          color: var(--j-white);
           min-height: 120px;
           text-align: left;
         }
@@ -250,7 +227,7 @@ export default function JarvisIntro({ onComplete }) {
           display: inline-block;
           width: 2px;
           height: 18px;
-          background: #F4A7B9;
+          background: var(--j-arc);
           margin-left: 3px;
           animation: blink 0.8s infinite;
         }
@@ -258,16 +235,22 @@ export default function JarvisIntro({ onComplete }) {
         .ji-ready {
           margin-top: 30px;
           letter-spacing: 4px;
-          color: #F4A7B9;
+          color: var(--j-arc);
         }
 
         .ji-skip {
           margin-top: 40px;
           background: transparent;
-          border: 1px solid #333;
-          color: #aaa;
-          padding: 8px 16px;
+          border: 1px solid var(--j-border);
+          color: var(--j-muted);
+          padding: 10px 18px;
           cursor: pointer;
+          transition: 0.2s;
+        }
+
+        .ji-skip:hover {
+          border-color: var(--j-arc);
+          color: var(--j-white);
         }
 
         @keyframes blink {
