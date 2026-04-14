@@ -63,8 +63,7 @@ export default function Landing() {
             {[
               { code:"01", label:"VOICE INTERACTION" },
               { code:"02", label:"AI EVALUATION"     },
-              { code:"03", label:"SCORE BREAKDOWN"   },
-              { code:"04", label:"FREE ACCESS"       },
+              
             ].map((f) => (
               <div key={f.code} className="land-feature">
                 <span className="land-feat-code">{f.code}</span>
@@ -89,9 +88,7 @@ export default function Landing() {
             </div>
           )}
 
-          <p className="land-note">
-            ── NO CREDIT CARD &nbsp;·&nbsp; BROWSER-NATIVE &nbsp;·&nbsp; SECURE AUTH ──
-          </p>
+         
         </div>
       </div>
 

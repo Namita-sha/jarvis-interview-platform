@@ -18,7 +18,7 @@ const getClient = () => {
 // ── Generate Questions ─────────────────────────────────────────────────────
 export async function generateQuestions({ role, level, techstack, type, amount }) {
   const genAI = getClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
   const prompt = `You are an expert technical interviewer. Generate exactly ${amount} interview questions.
 
@@ -65,7 +65,7 @@ Generate ${amount} questions now:`;
 // ── Evaluate Interview ─────────────────────────────────────────────────────
 export async function evaluateInterview({ transcript, role, level, techstack }) {
   const genAI = getClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
   if (!transcript || transcript.length === 0) {
     throw new Error("No transcript to evaluate");

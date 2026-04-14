@@ -50,7 +50,7 @@ export default function Dashboard() {
               {user?.displayName?.split(" ")[0]?.toUpperCase() || "OPERATOR"}
             </h1>
             <p className="hud-label-arc" style={{ marginTop:6 }}>
-              {user?.email}
+            
             </p>
           </div>
           <div className="db-header-right">
@@ -83,7 +83,7 @@ export default function Dashboard() {
         {/* Interviews */}
         <div className="animate-fadeInUp" style={{ animationDelay:"0.16s" }}>
           <div className="hud-divider" style={{ marginBottom:24 }}>
-            <span className="hud-label">MISSION LOGS — RECENT SESSIONS</span>
+            <span className="hud-label">RECENT SESSIONS</span>
           </div>
 
           {loading ? (
